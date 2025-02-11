@@ -23,6 +23,7 @@ class TestMain(TestCase):
         self.original_env = os.environ.copy()
         os.environ["OPENAI_API_KEY"] = "deadbeef"
         os.environ["AIDER_CHECK_UPDATE"] = "false"
+        os.environ["AIDER_ANALYTICS"] = "false"
         self.original_cwd = os.getcwd()
         self.tempdir_obj = IgnorantTemporaryDirectory()
         self.tempdir = self.tempdir_obj.name
@@ -45,7 +46,7 @@ class TestMain(TestCase):
         self.webbrowser_patcher.stop()
 
     def test_main_with_empty_dir_no_files_on_command(self):
-        main(["--no-git", "--exit"], input=DummyInput(), output=DummyOutput())
+        main(["--no-git", "--exit", "--yes"], input=DummyInput(), output=DummyOutput())
 
     def test_main_with_emptqy_dir_new_file(self):
         main(["foo.txt", "--yes", "--no-git", "--exit"], input=DummyInput(), output=DummyOutput())
@@ -139,7 +140,14 @@ class TestMain(TestCase):
 
             self.assertEqual(".aider*", gitignore.read_text().splitlines()[0])
 
+            # Test without .env file present
             gitignore.write_text("one\ntwo\n")
+            check_gitignore(cwd, io)
+            self.assertEqual("one\ntwo\n.aider*\n", gitignore.read_text())
+
+            # Test with .env file present
+            env_file = cwd / ".env"
+            env_file.touch()
             check_gitignore(cwd, io)
             self.assertEqual("one\ntwo\n.aider*\n.env\n", gitignore.read_text())
             del os.environ["GIT_CONFIG_GLOBAL"]
@@ -332,7 +340,7 @@ class TestMain(TestCase):
     def test_false_vals_in_env_file(self):
         self.create_env_file(".env", "AIDER_SHOW_DIFFS=off")
         with patch("aider.coders.Coder.create") as MockCoder:
-            main(["--no-git"], input=DummyInput(), output=DummyOutput())
+            main(["--no-git", "--yes"], input=DummyInput(), output=DummyOutput())
             MockCoder.assert_called_once()
             _, kwargs = MockCoder.call_args
             self.assertEqual(kwargs["show_diffs"], False)
@@ -340,7 +348,7 @@ class TestMain(TestCase):
     def test_true_vals_in_env_file(self):
         self.create_env_file(".env", "AIDER_SHOW_DIFFS=on")
         with patch("aider.coders.Coder.create") as MockCoder:
-            main(["--no-git"], input=DummyInput(), output=DummyOutput())
+            main(["--no-git", "--yes"], input=DummyInput(), output=DummyOutput())
             MockCoder.assert_called_once()
             _, kwargs = MockCoder.call_args
             self.assertEqual(kwargs["show_diffs"], True)
@@ -381,7 +389,11 @@ class TestMain(TestCase):
     def test_verbose_mode_lists_env_vars(self):
         self.create_env_file(".env", "AIDER_DARK_MODE=on")
         with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-            main(["--no-git", "--verbose", "--exit"], input=DummyInput(), output=DummyOutput())
+            main(
+                ["--no-git", "--verbose", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+            )
             output = mock_stdout.getvalue()
             relevant_output = "\n".join(
                 line
@@ -510,6 +522,15 @@ class TestMain(TestCase):
             os.unlink(external_file_path)
 
     def test_model_metadata_file(self):
+        # Re-init so we don't have old data lying around from earlier test cases
+        from aider import models
+
+        models.model_info_manager = models.ModelInfoManager()
+
+        from aider.llm import litellm
+
+        litellm._lazy_module = None
+
         with GitTemporaryDirectory():
             metadata_file = Path(".aider.model.metadata.json")
 
@@ -633,6 +654,164 @@ class TestMain(TestCase):
             )
             self.assertTrue(coder.suggest_shell_commands)
 
+    def test_detect_urls_default(self):
+        with GitTemporaryDirectory():
+            coder = main(
+                ["--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=True,
+            )
+            self.assertTrue(coder.detect_urls)
+
+    def test_detect_urls_disabled(self):
+        with GitTemporaryDirectory():
+            coder = main(
+                ["--no-detect-urls", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=True,
+            )
+            self.assertFalse(coder.detect_urls)
+
+    def test_detect_urls_enabled(self):
+        with GitTemporaryDirectory():
+            coder = main(
+                ["--detect-urls", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=True,
+            )
+            self.assertTrue(coder.detect_urls)
+
+    def test_pytest_env_vars(self):
+        # Verify that environment variables from pytest.ini are properly set
+        self.assertEqual(os.environ.get("AIDER_ANALYTICS"), "false")
+
+    def test_set_env_single(self):
+        # Test setting a single environment variable
+        with GitTemporaryDirectory():
+            main(["--set-env", "TEST_VAR=test_value", "--exit", "--yes"])
+            self.assertEqual(os.environ.get("TEST_VAR"), "test_value")
+
+    def test_set_env_multiple(self):
+        # Test setting multiple environment variables
+        with GitTemporaryDirectory():
+            main(
+                [
+                    "--set-env",
+                    "TEST_VAR1=value1",
+                    "--set-env",
+                    "TEST_VAR2=value2",
+                    "--exit",
+                    "--yes",
+                ]
+            )
+            self.assertEqual(os.environ.get("TEST_VAR1"), "value1")
+            self.assertEqual(os.environ.get("TEST_VAR2"), "value2")
+
+    def test_set_env_with_spaces(self):
+        # Test setting env var with spaces in value
+        with GitTemporaryDirectory():
+            main(["--set-env", "TEST_VAR=test value with spaces", "--exit", "--yes"])
+            self.assertEqual(os.environ.get("TEST_VAR"), "test value with spaces")
+
+    def test_set_env_invalid_format(self):
+        # Test invalid format handling
+        with GitTemporaryDirectory():
+            result = main(["--set-env", "INVALID_FORMAT", "--exit", "--yes"])
+            self.assertEqual(result, 1)
+
+    def test_api_key_single(self):
+        # Test setting a single API key
+        with GitTemporaryDirectory():
+            main(["--api-key", "anthropic=test-key", "--exit", "--yes"])
+            self.assertEqual(os.environ.get("ANTHROPIC_API_KEY"), "test-key")
+
+    def test_api_key_multiple(self):
+        # Test setting multiple API keys
+        with GitTemporaryDirectory():
+            main(["--api-key", "anthropic=key1", "--api-key", "openai=key2", "--exit", "--yes"])
+            self.assertEqual(os.environ.get("ANTHROPIC_API_KEY"), "key1")
+            self.assertEqual(os.environ.get("OPENAI_API_KEY"), "key2")
+
+    def test_api_key_invalid_format(self):
+        # Test invalid format handling
+        with GitTemporaryDirectory():
+            result = main(["--api-key", "INVALID_FORMAT", "--exit", "--yes"])
+            self.assertEqual(result, 1)
+
+    def test_invalid_edit_format(self):
+        with GitTemporaryDirectory():
+            with patch("aider.io.InputOutput.offer_url") as mock_offer_url:
+                result = main(
+                    ["--edit-format", "not-a-real-format", "--exit", "--yes"],
+                    input=DummyInput(),
+                    output=DummyOutput(),
+                )
+                self.assertEqual(result, 1)  # main() should return 1 on error
+                mock_offer_url.assert_called_once()
+                args, _ = mock_offer_url.call_args
+                self.assertEqual(args[0], "https://aider.chat/docs/more/edit-formats.html")
+
+    def test_default_model_selection(self):
+        with GitTemporaryDirectory():
+            # Test Anthropic API key
+            os.environ["ANTHROPIC_API_KEY"] = "test-key"
+            coder = main(
+                ["--exit", "--yes"], input=DummyInput(), output=DummyOutput(), return_coder=True
+            )
+            self.assertIn("sonnet", coder.main_model.name.lower())
+            del os.environ["ANTHROPIC_API_KEY"]
+
+            # Test DeepSeek API key
+            os.environ["DEEPSEEK_API_KEY"] = "test-key"
+            coder = main(
+                ["--exit", "--yes"], input=DummyInput(), output=DummyOutput(), return_coder=True
+            )
+            self.assertIn("deepseek", coder.main_model.name.lower())
+            del os.environ["DEEPSEEK_API_KEY"]
+
+            # Test OpenRouter API key
+            os.environ["OPENROUTER_API_KEY"] = "test-key"
+            coder = main(
+                ["--exit", "--yes"], input=DummyInput(), output=DummyOutput(), return_coder=True
+            )
+            self.assertIn("openrouter/anthropic/claude", coder.main_model.name.lower())
+            del os.environ["OPENROUTER_API_KEY"]
+
+            # Test OpenAI API key
+            os.environ["OPENAI_API_KEY"] = "test-key"
+            coder = main(
+                ["--exit", "--yes"], input=DummyInput(), output=DummyOutput(), return_coder=True
+            )
+            self.assertIn("gpt-4", coder.main_model.name.lower())
+            del os.environ["OPENAI_API_KEY"]
+
+            # Test Gemini API key
+            os.environ["GEMINI_API_KEY"] = "test-key"
+            coder = main(
+                ["--exit", "--yes"], input=DummyInput(), output=DummyOutput(), return_coder=True
+            )
+            self.assertIn("flash", coder.main_model.name.lower())
+            del os.environ["GEMINI_API_KEY"]
+
+            # Test no API keys
+            result = main(["--exit", "--yes"], input=DummyInput(), output=DummyOutput())
+            self.assertEqual(result, 1)
+
+    def test_model_precedence(self):
+        with GitTemporaryDirectory():
+            # Test that earlier API keys take precedence
+            os.environ["ANTHROPIC_API_KEY"] = "test-key"
+            os.environ["OPENAI_API_KEY"] = "test-key"
+            coder = main(
+                ["--exit", "--yes"], input=DummyInput(), output=DummyOutput(), return_coder=True
+            )
+            self.assertIn("sonnet", coder.main_model.name.lower())
+            del os.environ["ANTHROPIC_API_KEY"]
+            del os.environ["OPENAI_API_KEY"]
+
     def test_chat_language_spanish(self):
         with GitTemporaryDirectory():
             coder = main(
@@ -654,3 +833,14 @@ class TestMain(TestCase):
             self.fail(f"main() raised an unexpected exception: {e}")
 
         self.assertIsNone(result, "main() should return None when called with --exit")
+
+    def test_reasoning_effort_option(self):
+        coder = main(
+            ["--reasoning-effort", "3", "--yes", "--exit"],
+            input=DummyInput(),
+            output=DummyOutput(),
+            return_coder=True,
+        )
+        self.assertEqual(
+            coder.main_model.extra_params.get("extra_body", {}).get("reasoning_effort"), "3"
+        )

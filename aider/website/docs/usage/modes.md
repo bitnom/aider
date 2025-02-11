@@ -1,7 +1,7 @@
 ---
 parent: Usage
 nav_order: 60
-description: Using the chat, ask and help chat modes.
+description: Using the code, architect, ask and help chat modes.
 ---
 
 # Chat modes
@@ -27,6 +27,14 @@ with the `/chat-mode <mode>` command:
 /chat-mode architect
 /chat-mode ask
 /chat-mode help
+```
+
+Or you can switch between coding modes using these commands without arguments:
+
+```
+/code
+/architect
+/ask
 ```
 
 Or you can launch aider in one of the modes with the `--chat-mode <mode>` switch.

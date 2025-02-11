@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from aider.dump import dump  # noqa: F401
+
 
 @dataclass
 class ExInfo:
@@ -40,11 +42,17 @@ EXCEPTIONS = [
     ExInfo("ServiceUnavailableError", True, "The API provider's servers are down or overloaded."),
     ExInfo("UnprocessableEntityError", True, None),
     ExInfo("UnsupportedParamsError", True, None),
+    ExInfo(
+        "Timeout",
+        True,
+        "The API provider timed out without returning a response. They may be down or overloaded.",
+    ),
 ]
 
 
 class LiteLLMExceptions:
     exceptions = dict()
+    exception_info = {exi.name: exi for exi in EXCEPTIONS}
 
     def __init__(self):
         self._load()
@@ -53,24 +61,26 @@ class LiteLLMExceptions:
         import litellm
 
         for var in dir(litellm):
-            if not var.endswith("Error"):
-                continue
+            if var.endswith("Error"):
+                if var not in self.exception_info:
+                    raise ValueError(f"{var} is in litellm but not in aider's exceptions list")
 
-            ex_info = None
-            for exi in EXCEPTIONS:
-                if var == exi.name:
-                    ex_info = exi
-                    break
-
-            if strict and not ex_info:
-                raise ValueError(f"{var} is in litellm but not in aider's exceptions list")
-
+        for var in self.exception_info:
             ex = getattr(litellm, var)
-            self.exceptions[ex] = ex_info
+            self.exceptions[ex] = self.exception_info[var]
 
     def exceptions_tuple(self):
         return tuple(self.exceptions)
 
     def get_ex_info(self, ex):
         """Return the ExInfo for a given exception instance"""
+        import litellm
+
+        if ex.__class__ is litellm.APIConnectionError:
+            if "google.auth" in str(ex):
+                return ExInfo(
+                    "APIConnectionError", False, "You need to: pip install google-generativeai"
+                )
+            if "boto3" in str(ex):
+                return ExInfo("APIConnectionError", False, "You need to: pip install boto3")
         return self.exceptions.get(ex.__class__, ExInfo(None, None, None))
