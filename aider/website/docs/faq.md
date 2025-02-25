@@ -249,16 +249,17 @@ tr:hover { background-color: #f5f5f5; }
 </style>
 <table>
 <tr><th>Model Name</th><th class='right'>Total Tokens</th><th class='right'>Percent</th></tr>
-<tr><td>claude-3-5-sonnet-20241022</td><td class='right'>965,174</td><td class='right'>49.1%</td></tr>
-<tr><td>deepseek/deepseek-chat</td><td class='right'>600,244</td><td class='right'>30.5%</td></tr>
-<tr><td>deepseek/REDACTED</td><td class='right'>278,797</td><td class='right'>14.2%</td></tr>
-<tr><td>deepseek/deepseek-reasoner</td><td class='right'>40,597</td><td class='right'>2.1%</td></tr>
-<tr><td>claude-3-5-haiku-20241022</td><td class='right'>30,124</td><td class='right'>1.5%</td></tr>
-<tr><td>ollama/REDACTED</td><td class='right'>22,641</td><td class='right'>1.2%</td></tr>
-<tr><td>fireworks_ai/REDACTED</td><td class='right'>15,676</td><td class='right'>0.8%</td></tr>
-<tr><td>openrouter/deepseek/deepseek-chat</td><td class='right'>9,995</td><td class='right'>0.5%</td></tr>
-<tr><td>groq/REDACTED</td><td class='right'>2,462</td><td class='right'>0.1%</td></tr>
-<tr><td>openai/REDACTED</td><td class='right'>1,880</td><td class='right'>0.1%</td></tr>
+<tr><td>claude-3-5-sonnet-20241022</td><td class='right'>671,724</td><td class='right'>61.3%</td></tr>
+<tr><td>fireworks_ai/accounts/fireworks/models/deepseek-v3</td><td class='right'>118,661</td><td class='right'>10.8%</td></tr>
+<tr><td>o3-mini</td><td class='right'>98,659</td><td class='right'>9.0%</td></tr>
+<tr><td>claude-3-5-haiku-20241022</td><td class='right'>69,203</td><td class='right'>6.3%</td></tr>
+<tr><td>anthropic/claude-3-7-sonnet-20250219</td><td class='right'>67,578</td><td class='right'>6.2%</td></tr>
+<tr><td>fireworks_ai/accounts/fireworks/models/deepseek-r1</td><td class='right'>21,182</td><td class='right'>1.9%</td></tr>
+<tr><td>openrouter/anthropic/claude-3.7-sonnet</td><td class='right'>20,213</td><td class='right'>1.8%</td></tr>
+<tr><td>gpt-4o</td><td class='right'>12,595</td><td class='right'>1.1%</td></tr>
+<tr><td>openrouter/openai/o3-mini</td><td class='right'>10,107</td><td class='right'>0.9%</td></tr>
+<tr><td>openrouter/REDACTED</td><td class='right'>3,719</td><td class='right'>0.3%</td></tr>
+<tr><td>anthropic/REDACTED</td><td class='right'>1,999</td><td class='right'>0.2%</td></tr>
 </table>
 
 {: .note :}
